@@ -2,8 +2,12 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_TAG = "v${BUILD_NUMBER}"
-        APP_NAME  = "devops-python-app"
+        AWS_REGION      = "us-east-1"
+        AWS_ACCOUNT_ID  = "541739678686"
+        ECR_REGISTRY    = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        APP_NAME        = "devops-python-app"
+        IMAGE_TAG       = "v${BUILD_NUMBER}"
+        ECR_IMAGE       = "${ECR_REGISTRY}/${APP_NAME}"
     }
 
     stages {
@@ -51,15 +55,21 @@ pipeline {
             }
         }
 
-        stage('Docker Build') {
+        stage('Docker Build & Push to ECR') {
             steps {
-                sh "docker build -t ${APP_NAME}:${IMAGE_TAG} -t ${APP_NAME}:latest ."
+                sh '''
+                    aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                    docker build -t ${ECR_IMAGE}:${IMAGE_TAG} -t ${ECR_IMAGE}:latest .
+                    docker push ${ECR_IMAGE}:${IMAGE_TAG}
+                    docker push ${ECR_IMAGE}:latest
+                '''
             }
         }
     }
 
     post {
         always {
+            sh "docker logout ${ECR_REGISTRY} || true"
             cleanWs()
         }
     }
