@@ -65,6 +65,25 @@ pipeline {
                 '''
             }
         }
+
+        stage('Deploy to Kubernetes via Helm') {
+            steps {
+                sh '''
+                    # Refresh ECR pull secret inside k3s
+                    ECR_TOKEN=$(aws ecr get-login-password --region ${AWS_REGION})
+                    kubectl create secret docker-registry ecr-secret \
+                      --docker-server=${ECR_REGISTRY} \
+                      --docker-username=AWS \
+                      --docker-password="${ECR_TOKEN}" \
+                      --dry-run=client -o yaml | kubectl apply -f -
+
+                    # Deploy/Upgrade release
+                    helm upgrade --install ${APP_NAME} ./helm/devops-python-app \
+                      --set image.tag=${IMAGE_TAG} \
+                      --wait --timeout 3m
+                '''
+            }
+        }
     }
 
     post {
